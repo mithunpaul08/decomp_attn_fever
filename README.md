@@ -13,6 +13,6 @@ checkpoint. Else if you get the error `Serialization directory (/tmp/da) already
     - If you still would rather work by printing things onto command line you can turn on the DEBUG mode of allennlp using :`export ALLENNLP_DEBUG=True` on your command line.
 
 - To run/debug from pycharm:
-    - Run>Edit Configurations>select wrapper_debug.py> apply>OKO
+    - Run>Edit Configurations>+>python>give a name> for script path: select wrapper_debug.py> apply>OK
     - don't give any parameters. Its all hardcoded inside wrapper_debug.py. Change there if you want to.
     - Note: don't run actual training using this method. This is because there is a hardcoding inside wrapper_debug.py to remove your serialization directory every time.
