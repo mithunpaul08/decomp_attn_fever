@@ -11,7 +11,7 @@ from allennlp.data.fields import LabelField, TextField
 from allennlp.data.instance import Instance
 from allennlp.data.tokenizers import Tokenizer, WordTokenizer
 from allennlp.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
-
+import sys
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 @DatasetReader.register("fever_claim_evidences")
@@ -61,20 +61,25 @@ class FeverDatasetReader(DatasetReader):
                 if not line:
                     continue
                 paper_json = json.loads(line)
-                title = paper_json['claim']
-                abstract_list = paper_json['sents']
-                abstract=" ".join(abstract_list)
-                venue = paper_json['label']
-                yield self.text_to_instance(title, abstract, venue)
+                claim = paper_json['claim']
+                evidence_list = paper_json['sents']
+                evidence=" ".join(evidence_list)
+                gold_label = paper_json['label']
+                yield self.text_to_instance(claim, evidence, gold_label)
+        logger.info("done reading")
 
     @overrides
-    def text_to_instance(self, title: str, abstract: str, venue: str = None) -> Instance:  # type: ignore
+    def text_to_instance(self, claim: str, evidence: str, label: str = None) -> Instance:  # type: ignore
         # pylint: disable=arguments-differ
-        tokenized_title = self._tokenizer.tokenize(title)
-        tokenized_abstract = self._tokenizer.tokenize(abstract)
+        logger.debug(f"value of claim is:{claim}")
+        logger.debug(f"value of evidence is:{evidence}")
+        logger.debug(f"value of label is:{label}")
+
+        tokenized_title = self._tokenizer.tokenize(claim)
+        tokenized_abstract = self._tokenizer.tokenize(evidence)
         title_field = TextField(tokenized_title, self._token_indexers)
         abstract_field = TextField(tokenized_abstract, self._token_indexers)
-        fields = {'title': title_field, 'abstract': abstract_field}
-        if venue is not None:
-            fields['label'] = LabelField(venue)
+        fields = {'claim': title_field, 'evidence': abstract_field}
+        if label is not None:
+            fields['label'] = LabelField(label)
         return Instance(fields)

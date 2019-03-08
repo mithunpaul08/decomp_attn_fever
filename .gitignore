@@ -1,1 +1,4 @@
+*.pyc
 .idea
+.idea/*
+models_readers/dataset_readers/__pycache__

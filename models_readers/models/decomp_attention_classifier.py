@@ -93,17 +93,17 @@ class DecomposableAttention(Model):
         initializer(self)
 
     def forward(self,  # type: ignore
-                premise: Dict[str, torch.LongTensor],
-                hypothesis: Dict[str, torch.LongTensor],
+                claims: Dict[str, torch.LongTensor],
+                evidences: Dict[str, torch.LongTensor],
                 label: torch.IntTensor = None,
                 metadata: List[Dict[str, Any]] = None) -> Dict[str, torch.Tensor]:
         # pylint: disable=arguments-differ
         """
         Parameters
         ----------
-        premise : Dict[str, torch.LongTensor]
+        claims : Dict[str, torch.LongTensor]
             From a ``TextField``
-        hypothesis : Dict[str, torch.LongTensor]
+        evidences : Dict[str, torch.LongTensor]
             From a ``TextField``
         label : torch.IntTensor, optional, (default = None)
             From a ``LabelField``
@@ -123,10 +123,10 @@ class DecomposableAttention(Model):
         loss : torch.FloatTensor, optional
             A scalar loss to be optimised.
         """
-        embedded_premise = self._text_field_embedder(premise)
-        embedded_hypothesis = self._text_field_embedder(hypothesis)
-        premise_mask = get_text_field_mask(premise).float()
-        hypothesis_mask = get_text_field_mask(hypothesis).float()
+        embedded_premise = self._text_field_embedder(claims)
+        embedded_hypothesis = self._text_field_embedder(evidences)
+        premise_mask = get_text_field_mask(claims).float()
+        hypothesis_mask = get_text_field_mask(evidences).float()
 
         if self._premise_encoder:
             embedded_premise = self._premise_encoder(embedded_premise, premise_mask)
