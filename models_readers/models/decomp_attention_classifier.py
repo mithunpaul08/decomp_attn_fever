@@ -1,5 +1,5 @@
 from typing import Dict, Optional, List, Any
-
+from overrides import overrides
 import torch
 
 from allennlp.common.checks import check_dimensions_match
@@ -13,7 +13,7 @@ from allennlp.nn.util import get_text_field_mask, masked_softmax, weighted_sum
 from allennlp.training.metrics import CategoricalAccuracy
 
 
-@Model.register("decomposable_attention")
+#@Model.register("decomposable_attention")
 class DecomposableAttention(Model):
     """
     This ``Model`` implements the Decomposable Attention model described in `"A Decomposable
@@ -179,6 +179,22 @@ class DecomposableAttention(Model):
             output_dict["premise_tokens"] = [x["premise_tokens"] for x in metadata]
             output_dict["hypothesis_tokens"] = [x["hypothesis_tokens"] for x in metadata]
 
+        return output_dict
+
+    @overrides
+    def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """
+        Does a simple argmax over the class probabilities, converts indices to string labels, and
+        adds a ``"label"`` key to the dictionary with the result.
+        """
+        class_probabilities = F.softmax(output_dict['logits'], dim=-1)
+        output_dict['class_probabilities'] = class_probabilities
+
+        predictions = class_probabilities.cpu().data.numpy()
+        argmax_indices = numpy.argmax(predictions, axis=-1)
+        labels = [self.vocab.get_token_from_index(x, namespace="labels")
+                  for x in argmax_indices]
+        output_dict['label'] = labels
         return output_dict
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:
