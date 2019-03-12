@@ -7,14 +7,14 @@ from overrides import overrides
 
 from allennlp.common.file_utils import cached_path
 from allennlp.data.dataset_readers.dataset_reader import DatasetReader
-from allennlp.data.fields import LabelField, TextField
+from allennlp.data.fields import LabelField, TextField,MetadataField,Field
 from allennlp.data.instance import Instance
 from allennlp.data.tokenizers import Tokenizer, WordTokenizer
 from allennlp.data.token_indexers import TokenIndexer, SingleIdTokenIndexer
 import sys
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
-@DatasetReader.register("fever_claim_evidences")
+@DatasetReader.register("fever")
 class FeverDatasetReader(DatasetReader):
     """
     Reads a JSON-lines file containing papers from the Semantic Scholar database, and creates a
@@ -45,7 +45,7 @@ class FeverDatasetReader(DatasetReader):
         SingleIdTokenIndexer()}``.
     """
 
-    def __init__(self,lazy : bool = True,
+    def __init__(self,lazy : bool = False,
                  tokenizer: Tokenizer = None,
                  token_indexers: Dict[str, TokenIndexer] = None) -> None:
         super().__init__(lazy)
@@ -75,11 +75,15 @@ class FeverDatasetReader(DatasetReader):
         logger.debug(f"value of evidence is:{evidence}")
         logger.debug(f"value of label is:{label}")
 
-        tokenized_title = self._tokenizer.tokenize(claim)
-        tokenized_abstract = self._tokenizer.tokenize(evidence)
-        title_field = TextField(tokenized_title, self._token_indexers)
-        abstract_field = TextField(tokenized_abstract, self._token_indexers)
+        claims_tokens = self._tokenizer.tokenize(claim)
+        evidence_tokens = self._tokenizer.tokenize(evidence)
+        title_field = TextField(claims_tokens, self._token_indexers)
+        abstract_field = TextField(evidence_tokens, self._token_indexers)
         fields = {'claim': title_field, 'evidence': abstract_field}
         if label is not None:
             fields['label'] = LabelField(label)
+
+        metadata = {"claims_tokens": [x.text for x in claims_tokens],
+                    "evidence_tokens": [x.text for x in evidence_tokens]}
+        fields["metadata"] = MetadataField(metadata)
         return Instance(fields)

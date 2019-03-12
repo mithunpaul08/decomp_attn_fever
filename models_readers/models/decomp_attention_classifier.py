@@ -13,7 +13,7 @@ from allennlp.nn.util import get_text_field_mask, masked_softmax, weighted_sum
 from allennlp.training.metrics import CategoricalAccuracy
 
 
-#@Model.register("decomposable_attention")
+@Model.register("decomp_attention")
 class DecomposableAttention(Model):
     """
     This ``Model`` implements the Decomposable Attention model described in `"A Decomposable
@@ -66,8 +66,8 @@ class DecomposableAttention(Model):
                  similarity_function: SimilarityFunction,
                  compare_feedforward: FeedForward,
                  aggregate_feedforward: FeedForward,
-                 premise_encoder: Optional[Seq2SeqEncoder] = None,
-                 hypothesis_encoder: Optional[Seq2SeqEncoder] = None,
+                 claim_encoder: Optional[Seq2SeqEncoder] = None,
+                 evidence_encoder: Optional[Seq2SeqEncoder] = None,
                  initializer: InitializerApplicator = InitializerApplicator(),
                  regularizer: Optional[RegularizerApplicator] = None) -> None:
         super(DecomposableAttention, self).__init__(vocab, regularizer)
@@ -77,8 +77,8 @@ class DecomposableAttention(Model):
         self._matrix_attention = LegacyMatrixAttention(similarity_function)
         self._compare_feedforward = TimeDistributed(compare_feedforward)
         self._aggregate_feedforward = aggregate_feedforward
-        self._premise_encoder = premise_encoder
-        self._hypothesis_encoder = hypothesis_encoder or premise_encoder
+        self._claim_encoder = claim_encoder
+        self._hypothesis_encoder = evidence_encoder or claim_encoder
 
         self._num_labels = vocab.get_vocab_size(namespace="labels")
 
@@ -93,17 +93,17 @@ class DecomposableAttention(Model):
         initializer(self)
 
     def forward(self,  # type: ignore
-                claims: Dict[str, torch.LongTensor],
-                evidences: Dict[str, torch.LongTensor],
+                claim: Dict[str, torch.LongTensor],
+                evidence: Dict[str, torch.LongTensor],
                 label: torch.IntTensor = None,
                 metadata: List[Dict[str, Any]] = None) -> Dict[str, torch.Tensor]:
         # pylint: disable=arguments-differ
         """
         Parameters
         ----------
-        claims : Dict[str, torch.LongTensor]
+        claim : Dict[str, torch.LongTensor]
             From a ``TextField``
-        evidences : Dict[str, torch.LongTensor]
+        evidence : Dict[str, torch.LongTensor]
             From a ``TextField``
         label : torch.IntTensor, optional, (default = None)
             From a ``LabelField``
@@ -123,17 +123,17 @@ class DecomposableAttention(Model):
         loss : torch.FloatTensor, optional
             A scalar loss to be optimised.
         """
-        embedded_premise = self._text_field_embedder(claims)
-        embedded_hypothesis = self._text_field_embedder(evidences)
-        premise_mask = get_text_field_mask(claims).float()
-        hypothesis_mask = get_text_field_mask(evidences).float()
+        embedded_claims = self._text_field_embedder(claim)
+        embedded_hypothesis = self._text_field_embedder(evidence)
+        premise_mask = get_text_field_mask(claim).float()
+        hypothesis_mask = get_text_field_mask(evidence).float()
 
         if self._premise_encoder:
-            embedded_premise = self._premise_encoder(embedded_premise, premise_mask)
+            embedded_claims = self._premise_encoder(embedded_claims, premise_mask)
         if self._hypothesis_encoder:
             embedded_hypothesis = self._hypothesis_encoder(embedded_hypothesis, hypothesis_mask)
 
-        projected_premise = self._attend_feedforward(embedded_premise)
+        projected_premise = self._attend_feedforward(embedded_claims)
         projected_hypothesis = self._attend_feedforward(embedded_hypothesis)
         # Shape: (batch_size, premise_length, hypothesis_length)
         similarity_matrix = self._matrix_attention(projected_premise, projected_hypothesis)
@@ -146,9 +146,9 @@ class DecomposableAttention(Model):
         # Shape: (batch_size, hypothesis_length, premise_length)
         h2p_attention = masked_softmax(similarity_matrix.transpose(1, 2).contiguous(), premise_mask)
         # Shape: (batch_size, hypothesis_length, embedding_dim)
-        attended_premise = weighted_sum(embedded_premise, h2p_attention)
+        attended_premise = weighted_sum(embedded_claims, h2p_attention)
 
-        premise_compare_input = torch.cat([embedded_premise, attended_hypothesis], dim=-1)
+        premise_compare_input = torch.cat([embedded_claims, attended_hypothesis], dim=-1)
         hypothesis_compare_input = torch.cat([embedded_hypothesis, attended_premise], dim=-1)
 
         compared_premise = self._compare_feedforward(premise_compare_input)
@@ -176,8 +176,8 @@ class DecomposableAttention(Model):
             output_dict["loss"] = loss
 
         if metadata is not None:
-            output_dict["premise_tokens"] = [x["premise_tokens"] for x in metadata]
-            output_dict["hypothesis_tokens"] = [x["hypothesis_tokens"] for x in metadata]
+            output_dict["claim"] = [x["claim"] for x in metadata]
+            output_dict["evidence"] = [x["evidence"] for x in metadata]
 
         return output_dict
 
