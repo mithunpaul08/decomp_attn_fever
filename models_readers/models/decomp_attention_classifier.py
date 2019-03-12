@@ -176,8 +176,8 @@ class DecomposableAttention(Model):
             output_dict["loss"] = loss
 
         if metadata is not None:
-            output_dict["claim"] = [x["claim"] for x in metadata]
-            output_dict["evidence"] = [x["evidence"] for x in metadata]
+            output_dict["claims_tokens"] = [x["claims_tokens"] for x in metadata]
+            output_dict["evidence_tokens"] = [x["evidence_tokens"] for x in metadata]
 
         return output_dict
 
