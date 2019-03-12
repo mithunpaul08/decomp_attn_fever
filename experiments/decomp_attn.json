@@ -13,8 +13,14 @@
       "end_tokens": ["@@NULL@@"]
     }
   },
-  "train_data_path": "data/train_120k_with_evi_sents.jsonl",
-  "validation_data_path": "data/dev_24K_no_train_120k_overlap.jsonl",
+  //to use in local machines
+  "train_data_path": "data/train_small_200_claims_with_evi_sents.jsonl",
+  "validation_data_path": "data/ dev_90_with_evi_sents.jsonl",
+
+  //to use in server,
+//  "train_data_path": "data/train_120k_with_evi_sents.jsonl",
+//  "validation_data_path": "data/dev_24K_no_train_120k_overlap.jsonl",
+
   "model": {
     "type": "decomp_attention",
     "text_field_embedder": {

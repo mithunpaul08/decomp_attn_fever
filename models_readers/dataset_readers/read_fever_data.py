@@ -52,6 +52,20 @@ class FeverDatasetReader(DatasetReader):
         self._tokenizer = tokenizer or WordTokenizer()
         self._token_indexers = token_indexers or {"tokens": SingleIdTokenIndexer()}
 
+    def truncate(self, sent):
+
+        ## truncate at 1000 words. irrespective of claim or evidence truncate it at n...
+        # Else it was overloading memory due to the packing/padding of all sentences into the longest size..
+        # which was like 180k words or something
+        #todo: make 1000 come from command line arguments
+        tr_len=1000
+        claim=""
+        claim_split = sent.split(" ")
+        if (len(claim_split) > tr_len):
+            claim_tr = claim_split[:1000]
+            claim = " ".join(claim_tr)
+        return claim
+
     @overrides
     def _read(self, file_path):
         with open((file_path), "r") as data_file:
@@ -62,8 +76,10 @@ class FeverDatasetReader(DatasetReader):
                     continue
                 paper_json = json.loads(line)
                 claim = paper_json['claim']
+                claim=self.truncate(claim)
                 evidence_list = paper_json['sents']
                 evidence=" ".join(evidence_list)
+                evidence = self.truncate(evidence)
                 gold_label = paper_json['label']
                 yield self.text_to_instance(claim, evidence, gold_label)
         logger.info("done reading")
