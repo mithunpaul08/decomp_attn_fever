@@ -1,3 +1,10 @@
+## prerequisites
+`pip install -r requirements.txt`
+
++ install correct version of pytorch based on your os and GPU availability
+
+note to self, use this in server clara:
+`conda install pytorch torchvision cudatoolkit=8.0 -c pytorch`
 ### run this code using
 
 ` allennlp train experiments/decomp_attn.json --serialization-dir /tmp/da --recover --include-package models_readers`
