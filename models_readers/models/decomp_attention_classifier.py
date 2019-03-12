@@ -1,5 +1,5 @@
 from typing import Dict, Optional, List, Any
-
+from overrides import overrides
 import torch
 
 from allennlp.common.checks import check_dimensions_match
@@ -13,7 +13,7 @@ from allennlp.nn.util import get_text_field_mask, masked_softmax, weighted_sum
 from allennlp.training.metrics import CategoricalAccuracy
 
 
-@Model.register("decomposable_attention")
+@Model.register("decomp_attention")
 class DecomposableAttention(Model):
     """
     This ``Model`` implements the Decomposable Attention model described in `"A Decomposable
@@ -66,8 +66,8 @@ class DecomposableAttention(Model):
                  similarity_function: SimilarityFunction,
                  compare_feedforward: FeedForward,
                  aggregate_feedforward: FeedForward,
-                 premise_encoder: Optional[Seq2SeqEncoder] = None,
-                 hypothesis_encoder: Optional[Seq2SeqEncoder] = None,
+                 claim_encoder: Optional[Seq2SeqEncoder] = None,
+                 evidence_encoder: Optional[Seq2SeqEncoder] = None,
                  initializer: InitializerApplicator = InitializerApplicator(),
                  regularizer: Optional[RegularizerApplicator] = None) -> None:
         super(DecomposableAttention, self).__init__(vocab, regularizer)
@@ -77,8 +77,8 @@ class DecomposableAttention(Model):
         self._matrix_attention = LegacyMatrixAttention(similarity_function)
         self._compare_feedforward = TimeDistributed(compare_feedforward)
         self._aggregate_feedforward = aggregate_feedforward
-        self._premise_encoder = premise_encoder
-        self._hypothesis_encoder = hypothesis_encoder or premise_encoder
+        self._claim_encoder = claim_encoder
+        self._evidence_encoder = evidence_encoder or claim_encoder
 
         self._num_labels = vocab.get_vocab_size(namespace="labels")
 
@@ -93,17 +93,17 @@ class DecomposableAttention(Model):
         initializer(self)
 
     def forward(self,  # type: ignore
-                premise: Dict[str, torch.LongTensor],
-                hypothesis: Dict[str, torch.LongTensor],
+                claim: Dict[str, torch.LongTensor],
+                evidence: Dict[str, torch.LongTensor],
                 label: torch.IntTensor = None,
                 metadata: List[Dict[str, Any]] = None) -> Dict[str, torch.Tensor]:
         # pylint: disable=arguments-differ
         """
         Parameters
         ----------
-        premise : Dict[str, torch.LongTensor]
+        claim : Dict[str, torch.LongTensor]
             From a ``TextField``
-        hypothesis : Dict[str, torch.LongTensor]
+        evidence : Dict[str, torch.LongTensor]
             From a ``TextField``
         label : torch.IntTensor, optional, (default = None)
             From a ``LabelField``
@@ -123,33 +123,33 @@ class DecomposableAttention(Model):
         loss : torch.FloatTensor, optional
             A scalar loss to be optimised.
         """
-        embedded_premise = self._text_field_embedder(premise)
-        embedded_hypothesis = self._text_field_embedder(hypothesis)
-        premise_mask = get_text_field_mask(premise).float()
-        hypothesis_mask = get_text_field_mask(hypothesis).float()
+        embedded_claims = self._text_field_embedder(claim)
+        embedded_evidences = self._text_field_embedder(evidence)
+        premise_mask = get_text_field_mask(claim).float()
+        hypothesis_mask = get_text_field_mask(evidence).float()
 
-        if self._premise_encoder:
-            embedded_premise = self._premise_encoder(embedded_premise, premise_mask)
-        if self._hypothesis_encoder:
-            embedded_hypothesis = self._hypothesis_encoder(embedded_hypothesis, hypothesis_mask)
+        if self._claim_encoder:
+            embedded_claims = self._claim_encoder(embedded_claims, premise_mask)
+        if self._evidence_encoder:
+            embedded_evidences = self._evidence_encoder(embedded_evidences, hypothesis_mask)
 
-        projected_premise = self._attend_feedforward(embedded_premise)
-        projected_hypothesis = self._attend_feedforward(embedded_hypothesis)
+        projected_premise = self._attend_feedforward(embedded_claims)
+        projected_hypothesis = self._attend_feedforward(embedded_evidences)
         # Shape: (batch_size, premise_length, hypothesis_length)
         similarity_matrix = self._matrix_attention(projected_premise, projected_hypothesis)
 
         # Shape: (batch_size, premise_length, hypothesis_length)
         p2h_attention = masked_softmax(similarity_matrix, hypothesis_mask)
         # Shape: (batch_size, premise_length, embedding_dim)
-        attended_hypothesis = weighted_sum(embedded_hypothesis, p2h_attention)
+        attended_hypothesis = weighted_sum(embedded_evidences, p2h_attention)
 
         # Shape: (batch_size, hypothesis_length, premise_length)
         h2p_attention = masked_softmax(similarity_matrix.transpose(1, 2).contiguous(), premise_mask)
         # Shape: (batch_size, hypothesis_length, embedding_dim)
-        attended_premise = weighted_sum(embedded_premise, h2p_attention)
+        attended_premise = weighted_sum(embedded_claims, h2p_attention)
 
-        premise_compare_input = torch.cat([embedded_premise, attended_hypothesis], dim=-1)
-        hypothesis_compare_input = torch.cat([embedded_hypothesis, attended_premise], dim=-1)
+        premise_compare_input = torch.cat([embedded_claims, attended_hypothesis], dim=-1)
+        hypothesis_compare_input = torch.cat([embedded_evidences, attended_premise], dim=-1)
 
         compared_premise = self._compare_feedforward(premise_compare_input)
         compared_premise = compared_premise * premise_mask.unsqueeze(-1)
@@ -176,9 +176,25 @@ class DecomposableAttention(Model):
             output_dict["loss"] = loss
 
         if metadata is not None:
-            output_dict["premise_tokens"] = [x["premise_tokens"] for x in metadata]
-            output_dict["hypothesis_tokens"] = [x["hypothesis_tokens"] for x in metadata]
+            output_dict["claim"] = [x["claim"] for x in metadata]
+            output_dict["evidence"] = [x["evidence"] for x in metadata]
 
+        return output_dict
+
+    @overrides
+    def decode(self, output_dict: Dict[str, torch.Tensor]) -> Dict[str, torch.Tensor]:
+        """
+        Does a simple argmax over the class probabilities, converts indices to string labels, and
+        adds a ``"label"`` key to the dictionary with the result.
+        """
+        class_probabilities = F.softmax(output_dict['logits'], dim=-1)
+        output_dict['class_probabilities'] = class_probabilities
+
+        predictions = class_probabilities.cpu().data.numpy()
+        argmax_indices = numpy.argmax(predictions, axis=-1)
+        labels = [self.vocab.get_token_from_index(x, namespace="labels")
+                  for x in argmax_indices]
+        output_dict['label'] = labels
         return output_dict
 
     def get_metrics(self, reset: bool = False) -> Dict[str, float]:

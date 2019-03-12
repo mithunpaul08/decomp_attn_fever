@@ -1,14 +1,14 @@
 # pylint: disable=no-self-use,invalid-name
 from allennlp.common.testing import AllenNlpTestCase
 from allennlp.common.util import ensure_list
-from models_readers.dataset_readers.semantic_scholar_papers import SemanticScholarDatasetReader
+from models_readers.dataset_readers.read_fever_data import FeverDatasetReader
 
 
 
-class TestScholarDatasetReader(AllenNlpTestCase):
+class TestFeverDatasetReader(AllenNlpTestCase):
     def test_read_from_file(self):
 
-        reader = SemanticScholarDatasetReader()
+        reader = FeverDatasetReader()
         instances = ensure_list(reader.read('tests/fixtures/fever_train_fixture.jsonl'))
 
 
