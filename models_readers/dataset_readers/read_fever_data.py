@@ -45,7 +45,7 @@ class FeverDatasetReader(DatasetReader):
         SingleIdTokenIndexer()}``.
     """
 
-    def __init__(self,lazy : bool = False,
+    def __init__(self,lazy : bool = True,
                  tokenizer: Tokenizer = None,
                  token_indexers: Dict[str, TokenIndexer] = None) -> None:
         super().__init__(lazy)
