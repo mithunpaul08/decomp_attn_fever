@@ -59,12 +59,14 @@ class FeverDatasetReader(DatasetReader):
         # which was like 180k words or something
         #todo: make 1000 come from command line arguments
         tr_len=1000
-        claim=""
-        claim_split = sent.split(" ")
-        if (len(claim_split) > tr_len):
-            claim_tr = claim_split[:1000]
-            claim = " ".join(claim_tr)
-        return claim
+
+        sent_split = sent.split(" ")
+        if (len(sent_split) > tr_len):
+            sent_tr = sent_split[:1000]
+            sent2 = " ".join(sent_tr)
+            return sent2
+        else:
+            return sent
 
     @overrides
     def _read(self, file_path):
@@ -76,7 +78,7 @@ class FeverDatasetReader(DatasetReader):
                     continue
                 paper_json = json.loads(line)
                 claim = paper_json['claim']
-                claim=self.truncate(claim)
+                claim= self.truncate(claim)
                 evidence_list = paper_json['sents']
                 evidence=" ".join(evidence_list)
                 evidence = self.truncate(evidence)
