@@ -1,6 +1,20 @@
-### run this code using
+## prerequisites 
 
-` allennlp train experiments/decomp_attn.json --serialization-dir /tmp/da --recover --include-package models_readers`
+do in this order:
+```
+conda create -n allennlp python=3.6
+source activate allennlp
+conda install pytorch torchvision cudatoolkit=8.0 -c pytorch
+pip install allennlp
+```
+notes: 
+- I'd suggest not to use `pip install -r requirements`
+- install correct version of pytorch based on your os and GPU availability
+- note to self, use this in server clara:
+`conda install pytorch torchvision cudatoolkit=8.0 -c pytorch`
+### To run the code:
+
+`allennlp train experiments/decomp_attn.json --serialization-dir /tmp/da --recover --include-package models_readers`
 
 - The --recover is if you know you had stopped before in the middle of a good run and want to recover the saved 
 checkpoint. Else if you get the error `Serialization directory (/tmp/da) already exists` do `rm -rf /tmp/da/`.  
